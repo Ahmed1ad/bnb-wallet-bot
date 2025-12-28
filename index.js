@@ -8,7 +8,7 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const BSCSCAN_API = process.env.BSCSCAN_API;
 
 const WATCHED_ADDRESS =
-  "0x2024A9A72395619c4E99Ff84Be23DdD91422339F".toLowerCase();
+  "0xAE02717e94C9B5bAe817601a49B4584F58324015".toLowerCase();
 
 const CHECK_INTERVAL = 15000; // 15 seconds
 const DB_FILE = "./data.json";
