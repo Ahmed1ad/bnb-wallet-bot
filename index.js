@@ -7,10 +7,12 @@ import fs from "fs";
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const BSCSCAN_API = process.env.BSCSCAN_API;
 
+// غيّر العنوان هنا
 const WATCHED_ADDRESS =
-  "0x238a358808379702088667322f80aC48bAd5e6c4".toLowerCase();
+  "0x238a358808379702088667322f80ac48bad5e6c4".toLowerCase();
 
-const CHECK_INTERVAL = 15000; // 15 seconds
+const CHECK_INTERVAL = 15000; // 15 ثانية
+const MAX_TX_CHECK = 10; // نفحص آخر 10 معاملات
 const DB_FILE = "./data.json";
 /* ============================================ */
 
@@ -24,15 +26,11 @@ const bot = new TelegramBot(BOT_TOKEN);
 const app = express();
 app.use(express.json());
 
-// health check
-app.get("/", (req, res) => {
-  res.send("Bot is running");
-});
+// health
+app.get("/", (req, res) => res.send("Bot is running"));
 
 // webhook test
-app.get("/webhook", (req, res) => {
-  res.send("Webhook is running");
-});
+app.get("/webhook", (req, res) => res.send("Webhook is running"));
 
 // telegram webhook
 app.post("/webhook", (req, res) => {
@@ -41,7 +39,6 @@ app.post("/webhook", (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log("🚀 Server started on port", PORT);
 
@@ -52,9 +49,7 @@ app.listen(PORT, () => {
   bot
     .setWebHook(`${url}/webhook`)
     .then(() => console.log("✅ Webhook connected"))
-    .catch((err) =>
-      console.log("⚠️ Webhook error (non-fatal):", err.message)
-    );
+    .catch((err) => console.log("⚠️ Webhook error:", err.message));
 });
 /* ============================================ */
 
@@ -87,11 +82,11 @@ bot.onText(/\/start/, (msg) => {
   bot.sendMessage(
     msg.chat.id,
     "🤖 *Wallet Monitor Bot*\n\n" +
-      "🔔 مراقبة محفظة واحدة ثابتة\n" +
-      "💰 BNB + USDT + أي BEP20\n" +
-      "⚙️ تحويلات عادية + Internal\n" +
-      "⚡ إشعارات فورية\n\n" +
-      "سيب البوت مفتوح وهتوصلك كل الحركات 🔥",
+      "🔔 مراقبة محفظة نشطة جدًا\n" +
+      "💰 BNB + BEP20 (USDT/BSC-USD)\n" +
+      "⚙️ Normal + Internal Tx\n" +
+      "⚡ إشعارات فورية لكل تحويل\n\n" +
+      "جاهز 🔥",
     { parse_mode: "Markdown" }
   );
 });
@@ -108,13 +103,17 @@ function broadcast(text) {
 /* ================== MONITOR ================== */
 setInterval(async () => {
   try {
-    /* -------- BNB -------- */
-    const bnbURL = `https://api.bscscan.com/api?module=account&action=txlist&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
+    /* -------- BNB (Normal) -------- */
+    const bnbURL =
+      `https://api.bscscan.com/api?module=account&action=txlist` +
+      `&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
     const bnbData = await fetch(bnbURL).then(r => r.json());
 
     if (bnbData.status === "1" && bnbData.result.length) {
-      const tx = bnbData.result[0];
-      if (tx.hash !== db.lastBNBTx) {
+      const txs = bnbData.result.slice(0, MAX_TX_CHECK).reverse();
+      for (const tx of txs) {
+        if (tx.hash === db.lastBNBTx) continue;
+
         db.lastBNBTx = tx.hash;
         saveDB();
 
@@ -132,13 +131,17 @@ ${incoming ? "⬆️ Incoming" : "⬇️ Outgoing"}
       }
     }
 
-    /* -------- TOKENS (USDT + BEP20) -------- */
-    const tokenURL = `https://api.bscscan.com/api?module=account&action=tokentx&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
+    /* -------- TOKENS (BEP20) -------- */
+    const tokenURL =
+      `https://api.bscscan.com/api?module=account&action=tokentx` +
+      `&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
     const tokenData = await fetch(tokenURL).then(r => r.json());
 
     if (tokenData.status === "1" && tokenData.result.length) {
-      const tx = tokenData.result[0];
-      if (tx.hash !== db.lastTokenTx) {
+      const txs = tokenData.result.slice(0, MAX_TX_CHECK).reverse();
+      for (const tx of txs) {
+        if (tx.hash === db.lastTokenTx) continue;
+
         db.lastTokenTx = tx.hash;
         saveDB();
 
@@ -157,13 +160,17 @@ ${incoming ? "⬆️ Incoming" : "⬇️ Outgoing"}
       }
     }
 
-    /* -------- INTERNAL TRANSACTIONS -------- */
-    const internalURL = `https://api.bscscan.com/api?module=account&action=txlistinternal&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
+    /* -------- INTERNAL -------- */
+    const internalURL =
+      `https://api.bscscan.com/api?module=account&action=txlistinternal` +
+      `&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
     const internalData = await fetch(internalURL).then(r => r.json());
 
     if (internalData.status === "1" && internalData.result.length) {
-      const tx = internalData.result[0];
-      if (tx.hash !== db.lastInternalTx) {
+      const txs = internalData.result.slice(0, MAX_TX_CHECK).reverse();
+      for (const tx of txs) {
+        if (tx.hash === db.lastInternalTx) continue;
+
         db.lastInternalTx = tx.hash;
         saveDB();
 
