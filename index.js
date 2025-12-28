@@ -1,38 +1,41 @@
-import http from "http";
-
-const PORT = process.env.PORT || 3000;
-
-http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("Bot is alive 🚀");
-}).listen(PORT);
-
-
 import TelegramBot from "node-telegram-bot-api";
+import express from "express";
 import fetch from "node-fetch";
 import fs from "fs";
 
 /* ================== CONFIG ================== */
-const BOT_TOKEN = process.env.BOT_TOKEN;        // Telegram Bot Token
-const BSCSCAN_API = process.env.BSCSCAN_API;    // BscScan API Key
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const BSCSCAN_API = process.env.BSCSCAN_API;
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL;
 
 const WATCHED_ADDRESS =
   "0x55d398326f99059fF775485246999027B3197955".toLowerCase();
 
-const CHECK_INTERVAL = 15000; // 15 seconds
+const CHECK_INTERVAL = 15000; // 15 ثانية
 const DB_FILE = "./data.json";
 /* ============================================ */
 
-const bot = new TelegramBot(BOT_TOKEN, {
-  polling: {
-    interval: 300,
-    autoStart: true
-  }
+if (!BOT_TOKEN || !BSCSCAN_API || !RENDER_URL) {
+  console.error("❌ Missing environment variables");
+  process.exit(1);
+}
+
+/* ================== BOT + SERVER ================== */
+const bot = new TelegramBot(BOT_TOKEN);
+const app = express();
+app.use(express.json());
+
+app.post("/webhook", (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
 });
 
-bot.on("polling_error", (e) => {
-  console.log("Polling error:", e.message);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, async () => {
+  await bot.setWebHook(`${RENDER_URL}/webhook`);
+  console.log("✅ Webhook connected");
 });
+/* ============================================ */
 
 /* ================== DATABASE ================== */
 let db = {
@@ -51,7 +54,6 @@ const saveDB = () => {
 /* ============================================ */
 
 /* ================== USERS ================== */
-// أي شخص يبعت رسالة يتسجل تلقائي
 bot.on("message", (msg) => {
   if (!db.users.includes(msg.chat.id)) {
     db.users.push(msg.chat.id);
@@ -62,11 +64,11 @@ bot.on("message", (msg) => {
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(
     msg.chat.id,
-    "🤖 *BNB Wallet Monitor Bot*\n\n" +
+    "🤖 *Wallet Monitor Bot*\n\n" +
       "🔔 البوت بيراقب عنوان واحد ثابت\n" +
-      "📡 أي تحويل BNB أو USDT أو أي توكن\n" +
+      "💰 أي تحويل BNB أو USDT أو أي عملة\n" +
       "⚡ الإشعارات بتوصلك تلقائي\n\n" +
-      "سيب البوت مفتوح وهتوصلك كل الحركات 🔥",
+      "سيب البوت وهتوصلك كل الحركات 🔥",
     { parse_mode: "Markdown" }
   );
 });
@@ -83,7 +85,7 @@ function broadcast(text) {
 /* ================== MONITOR ================== */
 setInterval(async () => {
   try {
-    /* -------- BNB Transactions -------- */
+    /* -------- BNB -------- */
     const bnbURL = `https://api.bscscan.com/api?module=account&action=txlist&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
     const bnbData = await fetch(bnbURL).then((r) => r.json());
 
@@ -95,13 +97,12 @@ setInterval(async () => {
         saveDB();
 
         const amount = (tx.value / 1e18).toFixed(6);
-        const incoming =
-          tx.to.toLowerCase() === WATCHED_ADDRESS;
+        const incoming = tx.to.toLowerCase() === WATCHED_ADDRESS;
 
         broadcast(`
-🚨 *BNB Transaction Detected*
+🚨 *BNB Transaction*
 
-${incoming ? "⬆️ Incoming BNB" : "⬇️ Outgoing BNB"}
+${incoming ? "⬆️ Incoming" : "⬇️ Outgoing"}
 💰 Amount: *${amount} BNB*
 👤 From: \`${tx.from}\`
 🎯 To: \`${tx.to}\`
@@ -110,7 +111,7 @@ ${incoming ? "⬆️ Incoming BNB" : "⬇️ Outgoing BNB"}
       }
     }
 
-    /* -------- TOKEN (USDT + ALL BEP20) -------- */
+    /* -------- TOKENS (USDT + ALL BEP20) -------- */
     const tokenURL = `https://api.bscscan.com/api?module=account&action=tokentx&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
     const tokenData = await fetch(tokenURL).then((r) => r.json());
 
@@ -121,17 +122,14 @@ ${incoming ? "⬆️ Incoming BNB" : "⬇️ Outgoing BNB"}
         db.lastTokenTx = tx.hash;
         saveDB();
 
-        const amount = (
-          tx.value / 10 ** tx.tokenDecimal
-        ).toFixed(4);
-
-        const incoming =
-          tx.to.toLowerCase() === WATCHED_ADDRESS;
+        const amount =
+          (tx.value / 10 ** tx.tokenDecimal).toFixed(4);
+        const incoming = tx.to.toLowerCase() === WATCHED_ADDRESS;
 
         broadcast(`
-🚨 *Token Transaction Detected*
+🚨 *Token Transaction*
 
-${incoming ? "⬆️ Incoming Token" : "⬇️ Outgoing Token"}
+${incoming ? "⬆️ Incoming" : "⬇️ Outgoing"}
 🪙 Token: *${tx.tokenSymbol}*
 💰 Amount: *${amount}*
 👤 From: \`${tx.from}\`
@@ -140,8 +138,8 @@ ${incoming ? "⬆️ Incoming Token" : "⬇️ Outgoing Token"}
         `);
       }
     }
-  } catch (err) {
-    console.error("Error:", err.message);
+  } catch (e) {
+    console.log("Monitor error:", e.message);
   }
 }, CHECK_INTERVAL);
 /* ============================================ */
