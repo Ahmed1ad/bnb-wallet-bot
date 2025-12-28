@@ -2,107 +2,127 @@ import TelegramBot from "node-telegram-bot-api";
 import fetch from "node-fetch";
 import fs from "fs";
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const BSCSCAN_API = process.env.BSCSCAN_API;
+/* ================== CONFIG ================== */
+const BOT_TOKEN = process.env.BOT_TOKEN;        // Telegram Bot Token
+const BSCSCAN_API = process.env.BSCSCAN_API;    // BscScan API Key
+
+const WATCHED_ADDRESS =
+  "0x0e9ca28534adba8a89e6386cb4e23693fb226adb".toLowerCase();
+
+const CHECK_INTERVAL = 15000; // 15 seconds
+const DB_FILE = "./data.json";
+/* ============================================ */
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
-const DB_FILE = "./wallets.json";
 
-const loadDB = () =>
-  fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE)) : {};
+/* ================== DATABASE ================== */
+let db = {
+  users: [],
+  lastBNBTx: null,
+  lastTokenTx: null,
+};
 
-const saveDB = (data) =>
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+if (fs.existsSync(DB_FILE)) {
+  db = JSON.parse(fs.readFileSync(DB_FILE));
+}
 
-let db = loadDB();
+const saveDB = () => {
+  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+};
+/* ============================================ */
 
-// /start
+/* ================== USERS ================== */
+// أي شخص يبعت رسالة يتسجل تلقائي
+bot.on("message", (msg) => {
+  if (!db.users.includes(msg.chat.id)) {
+    db.users.push(msg.chat.id);
+    saveDB();
+  }
+});
+
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(
     msg.chat.id,
-    "🤖 *BNB Wallet Alert Bot*\n\n" +
-      "أوامر البوت:\n" +
-      "/add ADDRESS\n" +
-      "/remove ADDRESS\n" +
-      "/list\n",
+    "🤖 *BNB Wallet Monitor Bot*\n\n" +
+      "🔔 البوت بيراقب عنوان واحد ثابت\n" +
+      "📡 أي تحويل BNB أو USDT أو أي توكن\n" +
+      "⚡ الإشعارات بتوصلك تلقائي\n\n" +
+      "سيب البوت مفتوح وهتوصلك كل الحركات 🔥",
     { parse_mode: "Markdown" }
   );
 });
+/* ============================================ */
 
-// /add
-bot.onText(/\/add (.+)/, (msg, match) => {
-  const chatId = msg.chat.id;
-  const address = match[1].toLowerCase();
+/* ================== BROADCAST ================== */
+function broadcast(text) {
+  db.users.forEach((chatId) => {
+    bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
+  });
+}
+/* ============================================ */
 
-  if (!db[chatId]) db[chatId] = {};
-  db[chatId][address] = { lastTx: null };
-  saveDB(db);
-
-  bot.sendMessage(chatId, `✅ تم إضافة المحفظة:\n${address}`);
-});
-
-// /remove
-bot.onText(/\/remove (.+)/, (msg, match) => {
-  const chatId = msg.chat.id;
-  const address = match[1].toLowerCase();
-
-  if (db[chatId] && db[chatId][address]) {
-    delete db[chatId][address];
-    saveDB(db);
-    bot.sendMessage(chatId, "🗑️ تم حذف المحفظة");
-  }
-});
-
-// /list
-bot.onText(/\/list/, (msg) => {
-  const chatId = msg.chat.id;
-  const wallets = db[chatId] ? Object.keys(db[chatId]) : [];
-
-  bot.sendMessage(
-    chatId,
-    wallets.length
-      ? wallets.join("\n")
-      : "❌ لا يوجد محافظ مضافة"
-  );
-});
-
-// 🔁 فحص التحويلات كل 15 ثانية
+/* ================== MONITOR ================== */
 setInterval(async () => {
-  for (const chatId in db) {
-    for (const address in db[chatId]) {
-      const url = `https://api.bscscan.com/api?module=account&action=txlist&address=${address}&sort=desc&apikey=${BSCSCAN_API}`;
+  try {
+    /* -------- BNB Transactions -------- */
+    const bnbURL = `https://api.bscscan.com/api?module=account&action=txlist&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
+    const bnbData = await fetch(bnbURL).then((r) => r.json());
 
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.status !== "1") continue;
+    if (bnbData.status === "1" && bnbData.result.length) {
+      const tx = bnbData.result[0];
 
-      const tx = data.result[0];
-      if (!tx) continue;
-
-      if (db[chatId][address].lastTx !== tx.hash) {
-        db[chatId][address].lastTx = tx.hash;
-        saveDB(db);
+      if (tx.hash !== db.lastBNBTx) {
+        db.lastBNBTx = tx.hash;
+        saveDB();
 
         const amount = (tx.value / 1e18).toFixed(6);
-        const direction =
-          tx.to.toLowerCase() === address ? "⬆️ Incoming" : "⬇️ Outgoing";
+        const incoming =
+          tx.to.toLowerCase() === WATCHED_ADDRESS;
 
-        const message = `
-🚨 *BNB Transaction Alert*
+        broadcast(`
+🚨 *BNB Transaction Detected*
 
-📍 Wallet:
-\`${address}\`
-
-${direction}
+${incoming ? "⬆️ Incoming BNB" : "⬇️ Outgoing BNB"}
 💰 Amount: *${amount} BNB*
 👤 From: \`${tx.from}\`
 🎯 To: \`${tx.to}\`
-🔗 Tx Hash:
-https://bscscan.com/tx/${tx.hash}
-        `;
-
-        bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
+🔗 https://bscscan.com/tx/${tx.hash}
+        `);
       }
     }
+
+    /* -------- TOKEN (USDT + ALL BEP20) -------- */
+    const tokenURL = `https://api.bscscan.com/api?module=account&action=tokentx&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
+    const tokenData = await fetch(tokenURL).then((r) => r.json());
+
+    if (tokenData.status === "1" && tokenData.result.length) {
+      const tx = tokenData.result[0];
+
+      if (tx.hash !== db.lastTokenTx) {
+        db.lastTokenTx = tx.hash;
+        saveDB();
+
+        const amount = (
+          tx.value / 10 ** tx.tokenDecimal
+        ).toFixed(4);
+
+        const incoming =
+          tx.to.toLowerCase() === WATCHED_ADDRESS;
+
+        broadcast(`
+🚨 *Token Transaction Detected*
+
+${incoming ? "⬆️ Incoming Token" : "⬇️ Outgoing Token"}
+🪙 Token: *${tx.tokenSymbol}*
+💰 Amount: *${amount}*
+👤 From: \`${tx.from}\`
+🎯 To: \`${tx.to}\`
+🔗 https://bscscan.com/tx/${tx.hash}
+        `);
+      }
+    }
+  } catch (err) {
+    console.error("Error:", err.message);
   }
-}, 15000);
+}, CHECK_INTERVAL);
+/* ============================================ */
