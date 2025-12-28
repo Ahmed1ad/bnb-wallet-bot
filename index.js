@@ -2,8 +2,8 @@ import TelegramBot from "node-telegram-bot-api";
 import fetch from "node-fetch";
 import fs from "fs";
 
-const BOT_TOKEN = "7069425588:AAHum419wO6f-pCQK0ighkg7ZcTGPls9LQw";
-const BSCSCAN_API = "W4R52WUPUCUI5D3JZTI6JCBCAZGW4SKECZ";
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const BSCSCAN_API = process.env.BSCSCAN_API;
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 const DB_FILE = "./wallets.json";
