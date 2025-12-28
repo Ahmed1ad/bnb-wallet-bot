@@ -23,7 +23,16 @@ const CHECK_INTERVAL = 15000; // 15 seconds
 const DB_FILE = "./data.json";
 /* ============================================ */
 
-const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+const bot = new TelegramBot(BOT_TOKEN, {
+  polling: {
+    interval: 300,
+    autoStart: true
+  }
+});
+
+bot.on("polling_error", (e) => {
+  console.log("Polling error:", e.message);
+});
 
 /* ================== DATABASE ================== */
 let db = {
