@@ -9,10 +9,10 @@ const BSCSCAN_API = process.env.BSCSCAN_API;
 
 // غيّر العنوان هنا
 const WATCHED_ADDRESS =
-  "0x238a358808379702088667322f80ac48bad5e6c4".toLowerCase();
+  "0xbda40164caabdaccf22bcee5986cbff4ec36634d".toLowerCase();
 
 const CHECK_INTERVAL = 15000; // 15 ثانية
-const MAX_TX_CHECK = 20; // نفحص آخر 10 معاملات
+const MAX_TX_CHECK = 10; // نفحص آخر 10 معاملات
 const DB_FILE = "./data.json";
 /* ============================================ */
 
