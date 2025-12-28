@@ -1,0 +1,10 @@
+{
+  "name": "bnb-wallet-alert-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "node-telegram-bot-api": "^0.66.0",
+    "node-fetch": "^3.3.2"
+  }
+}
