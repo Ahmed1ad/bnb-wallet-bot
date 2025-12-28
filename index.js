@@ -8,7 +8,7 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const BSCSCAN_API = process.env.BSCSCAN_API;
 
 const WATCHED_ADDRESS =
-  "0x55d398326f99059fF775485246999027B3197955".toLowerCase();
+  "0x0e9ca28534adba8a89e6386cb4e23693fb226adb".toLowerCase();
 
 const CHECK_INTERVAL = 15000; // 15 seconds
 const DB_FILE = "./data.json";
@@ -24,16 +24,17 @@ const bot = new TelegramBot(BOT_TOKEN);
 const app = express();
 app.use(express.json());
 
-
+// health check
 app.get("/", (req, res) => {
   res.send("Bot is running");
 });
 
+// webhook test
 app.get("/webhook", (req, res) => {
   res.send("Webhook is running");
 });
 
-
+// telegram webhook
 app.post("/webhook", (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
@@ -69,9 +70,9 @@ if (fs.existsSync(DB_FILE)) {
   db = JSON.parse(fs.readFileSync(DB_FILE));
 }
 
-const saveDB = () => {
+function saveDB() {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-};
+}
 /* ============================================ */
 
 /* ================== USERS ================== */
@@ -98,22 +99,21 @@ bot.onText(/\/start/, (msg) => {
 
 /* ================== BROADCAST ================== */
 function broadcast(text) {
-  db.users.forEach((chatId) => {
+  for (const chatId of db.users) {
     bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
-  });
+  }
 }
 /* ============================================ */
 
 /* ================== MONITOR ================== */
 setInterval(async () => {
   try {
-    /* -------- BNB Transactions -------- */
+    /* -------- BNB -------- */
     const bnbURL = `https://api.bscscan.com/api?module=account&action=txlist&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
     const bnbData = await fetch(bnbURL).then(r => r.json());
 
     if (bnbData.status === "1" && bnbData.result.length) {
       const tx = bnbData.result[0];
-
       if (tx.hash !== db.lastBNBTx) {
         db.lastBNBTx = tx.hash;
         saveDB();
@@ -121,43 +121,39 @@ setInterval(async () => {
         const amount = (tx.value / 1e18).toFixed(6);
         const incoming = tx.to.toLowerCase() === WATCHED_ADDRESS;
 
-        broadcast(`
-🚨 *BNB Transaction*
-
+        broadcast(
+`🚨 *BNB Transaction*
 ${incoming ? "⬆️ Incoming" : "⬇️ Outgoing"}
 💰 Amount: *${amount} BNB*
 👤 From: \`${tx.from}\`
 🎯 To: \`${tx.to}\`
-🔗 https://bscscan.com/tx/${tx.hash}
-        `);
+🔗 https://bscscan.com/tx/${tx.hash}`
+        );
       }
     }
 
-    /* -------- TOKEN Transactions (USDT + ALL BEP20) -------- */
+    /* -------- TOKENS (USDT + BEP20) -------- */
     const tokenURL = `https://api.bscscan.com/api?module=account&action=tokentx&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
     const tokenData = await fetch(tokenURL).then(r => r.json());
 
     if (tokenData.status === "1" && tokenData.result.length) {
       const tx = tokenData.result[0];
-
       if (tx.hash !== db.lastTokenTx) {
         db.lastTokenTx = tx.hash;
         saveDB();
 
-        const amount =
-          (tx.value / 10 ** tx.tokenDecimal).toFixed(4);
+        const amount = (tx.value / 10 ** tx.tokenDecimal).toFixed(4);
         const incoming = tx.to.toLowerCase() === WATCHED_ADDRESS;
 
-        broadcast(`
-🚨 *Token Transaction*
-
+        broadcast(
+`🚨 *Token Transaction*
 ${incoming ? "⬆️ Incoming" : "⬇️ Outgoing"}
 🪙 Token: *${tx.tokenSymbol}*
 💰 Amount: *${amount}*
 👤 From: \`${tx.from}\`
 🎯 To: \`${tx.to}\`
-🔗 https://bscscan.com/tx/${tx.hash}
-        `);
+🔗 https://bscscan.com/tx/${tx.hash}`
+        );
       }
     }
 
@@ -167,7 +163,6 @@ ${incoming ? "⬆️ Incoming" : "⬇️ Outgoing"}
 
     if (internalData.status === "1" && internalData.result.length) {
       const tx = internalData.result[0];
-
       if (tx.hash !== db.lastInternalTx) {
         db.lastInternalTx = tx.hash;
         saveDB();
@@ -175,20 +170,19 @@ ${incoming ? "⬆️ Incoming" : "⬇️ Outgoing"}
         const amount = (tx.value / 1e18).toFixed(6);
         const incoming = tx.to.toLowerCase() === WATCHED_ADDRESS;
 
-        broadcast(`
-🚨 *Internal Transaction*
-
+        broadcast(
+`🚨 *Internal Transaction*
 ${incoming ? "⬆️ Incoming" : "⬇️ Outgoing"}
 💰 Amount: *${amount} BNB*
 👤 From: \`${tx.from}\`
 🎯 To: \`${tx.to}\`
-🔗 https://bscscan.com/tx/${tx.hash}
-        `);
+🔗 https://bscscan.com/tx/${tx.hash}`
+        );
       }
     }
 
-  } catch (e) {
-    console.log("Monitor error:", e.message);
+  } catch (err) {
+    console.log("Monitor error:", err.message);
   }
 }, CHECK_INTERVAL);
 /* ============================================ */
