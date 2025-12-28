@@ -1,3 +1,13 @@
+import http from "http";
+
+const PORT = process.env.PORT || 3000;
+
+http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Bot is alive 🚀");
+}).listen(PORT);
+
+
 import TelegramBot from "node-telegram-bot-api";
 import fetch from "node-fetch";
 import fs from "fs";
