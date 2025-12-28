@@ -31,13 +31,19 @@ app.post("/webhook", (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
+  console.log("🚀 Server started on port", PORT);
+
   const url =
     process.env.RENDER_EXTERNAL_URL ||
     `https://${process.env.RENDER_SERVICE_NAME}.onrender.com`;
 
-  await bot.setWebHook(`${url}/webhook`);
-  console.log("✅ Webhook connected");
+  bot
+    .setWebHook(`${url}/webhook`)
+    .then(() => console.log("✅ Webhook connected"))
+    .catch((err) =>
+      console.log("⚠️ Webhook error (non-fatal):", err.message)
+    );
 });
 /* ============================================ */
 
@@ -70,9 +76,9 @@ bot.onText(/\/start/, (msg) => {
     msg.chat.id,
     "🤖 *Wallet Monitor Bot*\n\n" +
       "🔔 البوت بيراقب عنوان واحد ثابت\n" +
-      "💰 أي تحويل BNB أو USDT أو أي عملة\n" +
+      "💰 أي تحويل BNB أو USDT أو أي عملة BEP20\n" +
       "⚡ الإشعارات بتوصلك تلقائي\n\n" +
-      "سيب البوت وهتوصلك كل الحركات 🔥",
+      "سيب البوت مفتوح وهتوصلك كل الحركات 🔥",
     { parse_mode: "Markdown" }
   );
 });
