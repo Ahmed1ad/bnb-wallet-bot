@@ -17,7 +17,7 @@ const BOT_TOKEN = process.env.BOT_TOKEN;        // Telegram Bot Token
 const BSCSCAN_API = process.env.BSCSCAN_API;    // BscScan API Key
 
 const WATCHED_ADDRESS =
-  "0x0e9ca28534adba8a89e6386cb4e23693fb226adb".toLowerCase();
+  "0x55d398326f99059fF775485246999027B3197955".toLowerCase();
 
 const CHECK_INTERVAL = 15000; // 15 seconds
 const DB_FILE = "./data.json";
