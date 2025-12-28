@@ -6,17 +6,16 @@ import fs from "fs";
 /* ================== CONFIG ================== */
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const BSCSCAN_API = process.env.BSCSCAN_API;
-const RENDER_URL = process.env.RENDER_EXTERNAL_URL;
 
 const WATCHED_ADDRESS =
   "0x55d398326f99059fF775485246999027B3197955".toLowerCase();
 
-const CHECK_INTERVAL = 15000; // 15 ثانية
+const CHECK_INTERVAL = 15000; // 15 seconds
 const DB_FILE = "./data.json";
 /* ============================================ */
 
-if (!BOT_TOKEN || !BSCSCAN_API || !RENDER_URL) {
-  console.error("❌ Missing environment variables");
+if (!BOT_TOKEN || !BSCSCAN_API) {
+  console.error("❌ Missing BOT_TOKEN or BSCSCAN_API");
   process.exit(1);
 }
 
@@ -31,8 +30,13 @@ app.post("/webhook", (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, async () => {
-  await bot.setWebHook(`${RENDER_URL}/webhook`);
+  const url =
+    process.env.RENDER_EXTERNAL_URL ||
+    `https://${process.env.RENDER_SERVICE_NAME}.onrender.com`;
+
+  await bot.setWebHook(`${url}/webhook`);
   console.log("✅ Webhook connected");
 });
 /* ============================================ */
@@ -85,7 +89,7 @@ function broadcast(text) {
 /* ================== MONITOR ================== */
 setInterval(async () => {
   try {
-    /* -------- BNB -------- */
+    /* -------- BNB Transactions -------- */
     const bnbURL = `https://api.bscscan.com/api?module=account&action=txlist&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
     const bnbData = await fetch(bnbURL).then((r) => r.json());
 
@@ -111,7 +115,7 @@ ${incoming ? "⬆️ Incoming" : "⬇️ Outgoing"}
       }
     }
 
-    /* -------- TOKENS (USDT + ALL BEP20) -------- */
+    /* -------- TOKEN Transactions (USDT + ALL BEP20) -------- */
     const tokenURL = `https://api.bscscan.com/api?module=account&action=tokentx&address=${WATCHED_ADDRESS}&sort=desc&apikey=${BSCSCAN_API}`;
     const tokenData = await fetch(tokenURL).then((r) => r.json());
 
