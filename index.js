@@ -10,7 +10,7 @@ const BSCSCAN_API = process.env.BSCSCAN_API;
 const WATCHED_ADDRESS =
   "0xbda40164caabdaccf22bcee5986cbff4ec36634d".toLowerCase();
 
-const CHECK_INTERVAL = 30000; // 30 ثانية (مهم لتفادي rate limit)
+const CHECK_INTERVAL = 30000; // 30 ثانية
 const DB_FILE = "./data.json";
 /* ========================================= */
 
@@ -70,10 +70,9 @@ bot.onText(/\/start/, (msg) => {
   bot.sendMessage(
     msg.chat.id,
     "🤖 *Wallet Monitor Bot*\n\n" +
-      "🔔 مراقبة محفظة (Wallet ➜ Wallet)\n" +
-      "💰 BNB + BEP20 Tokens\n" +
-      "⚡ يعتمد على startblock (لا يضيّع معاملات)\n\n" +
-      "جاهز 🔥",
+      "🔔 Debug mode ON\n" +
+      "⏱ Checking every 30s\n\n" +
+      "اعمل معاملة جديدة وشوف اللوج 👀",
     { parse_mode: "Markdown" }
   );
 });
@@ -92,18 +91,23 @@ setInterval(async () => {
   console.log("⏱ Checking transactions...");
 
   try {
-    /* -------- BNB NORMAL TX -------- */
+    /* -------- BNB -------- */
     const bnbURL =
       `https://api.bscscan.com/api?module=account&action=txlist` +
       `&address=${WATCHED_ADDRESS}` +
       `&startblock=${db.lastBlock}` +
-      `&sort=asc&apikey=${BSCSCAN_API}`;
+      `&sort=asc&apikey=${BSCSAN_API}`;
 
     const bnbData = await fetch(bnbURL).then(r => r.json());
+
+    console.log("BNB raw response:", bnbData.status, 
+      Array.isArray(bnbData.result) ? bnbData.result.length : bnbData.result);
 
     if (bnbData.status === "1") {
       for (const tx of bnbData.result) {
         if (Number(tx.blockNumber) <= db.lastBlock) continue;
+
+        console.log("➡️ New BNB TX:", tx.hash);
 
         db.lastBlock = Number(tx.blockNumber);
         saveDB();
@@ -122,18 +126,23 @@ ${incoming ? "⬆️ Incoming" : "⬇️ Outgoing"}
       }
     }
 
-    /* -------- TOKEN TX -------- */
+    /* -------- TOKEN -------- */
     const tokenURL =
       `https://api.bscscan.com/api?module=account&action=tokentx` +
       `&address=${WATCHED_ADDRESS}` +
       `&startblock=${db.lastBlock}` +
-      `&sort=asc&apikey=${BSCSCAN_API}`;
+      `&sort=asc&apikey=${BSCSAN_API}`;
 
     const tokenData = await fetch(tokenURL).then(r => r.json());
+
+    console.log("TOKEN raw response:", tokenData.status,
+      Array.isArray(tokenData.result) ? tokenData.result.length : tokenData.result);
 
     if (tokenData.status === "1") {
       for (const tx of tokenData.result) {
         if (Number(tx.blockNumber) <= db.lastBlock) continue;
+
+        console.log("➡️ New TOKEN TX:", tx.hash, tx.tokenSymbol);
 
         db.lastBlock = Number(tx.blockNumber);
         saveDB();
@@ -154,7 +163,7 @@ ${incoming ? "⬆️ Incoming" : "⬇️ Outgoing"}
     }
 
   } catch (err) {
-    console.error("Monitor error:", err.message);
+    console.error("❌ Monitor error:", err.message);
   }
 }, CHECK_INTERVAL);
 /* ============================================ */
